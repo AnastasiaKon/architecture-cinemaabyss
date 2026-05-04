@@ -1,0 +1,70 @@
+@startuml CinemaAbyss_ToBe_Container
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Кинобездна — To-Be контейнерная диаграмма
+
+Person(user, "Пользователь", "Смотрит фильмы, управляет подпиской, ставит оценки, добавляет фильмы в избранное")
+
+System_Ext(recommendationSystem, "Рекомендательная система", "Внешняя система, которая формирует персональные рекомендации")
+System_Ext(paymentProvider, "Платёжная система", "Внешний платёжный провайдер")
+System_Ext(loyaltySystem, "Сервисы лояльности", "Внешние партнёрские сервисы скидок и бонусов")
+System_Ext(contentProviders, "Поставщики контента", "Внешние сервисы и открытые источники видеоконтента")
+
+System_Boundary(cinemaabyss, "Кинобездна") {
+    Container(webApp, "Web App", "Frontend", "Веб-клиент для пользователей ноутбуков и браузеров")
+    Container(mobileApp, "Mobile App", "Frontend", "Мобильный клиент")
+    Container(tvApp, "Smart TV App", "Frontend", "Клиент для Smart TV")
+
+    Container(proxy, "Proxy / API Gateway", "Go/HTTP", "Единая точка входа. Маршрутизирует запросы в монолит или новые микросервисы. Поддерживает feature flag для Strangler Fig.")
+
+    Container(monolith, "Legacy Monolith", "Go", "Текущий монолит: пользователи, платежи, подписки, скидки, избранное, оценки и часть каталога")
+    ContainerDb(monolithDb, "Legacy PostgreSQL", "PostgreSQL", "Текущая общая база монолита")
+
+    Container(moviesService, "Movies Metadata Service", "Go", "Микросервис метаданных фильмов: жанры, актёры, описания, рейтинги")
+    ContainerDb(moviesDb, "Movies DB", "PostgreSQL", "Целевое хранилище метаданных фильмов")
+
+    Container(userService, "User Service", "Go", "Целевой сервис пользователей, профилей и аутентификации")
+    Container(subscriptionService, "Subscription Service", "Go", "Целевой сервис подписок")
+    Container(paymentService, "Payment Service", "Go", "Целевой сервис платежей и интеграции с платёжным провайдером")
+    Container(ratingService, "Ratings & Favorites Service", "Go", "Целевой сервис оценок фильмов и пользовательского избранного")
+    Container(discountService, "Discount / Loyalty Service", "Go", "Целевой сервис скидок и интеграций с программами лояльности")
+
+    Container(eventsService, "Events Service", "Go", "MVP-сервис событий. Публикует и читает события User, Payment, Movie через Kafka.")
+    ContainerQueue(kafka, "Kafka", "Apache Kafka", "Брокер событий для асинхронного взаимодействия и дальнейшего развития событийной архитектуры")
+}
+
+Rel(user, webApp, "Использует")
+Rel(user, mobileApp, "Использует")
+Rel(user, tvApp, "Использует")
+
+Rel(webApp, proxy, "Вызывает API", "HTTPS/REST")
+Rel(mobileApp, proxy, "Вызывает API", "HTTPS/REST")
+Rel(tvApp, proxy, "Вызывает API", "HTTPS/REST")
+
+Rel(proxy, moviesService, "Маршрутизирует /api/movies при включённой миграции", "HTTP")
+Rel(proxy, monolith, "Маршрутизирует legacy-запросы и часть /api/movies", "HTTP")
+Rel(proxy, eventsService, "Маршрутизирует запросы создания событий", "HTTP")
+
+Rel(monolith, monolithDb, "Читает и пишет legacy-данные", "SQL")
+Rel(moviesService, moviesDb, "Читает и пишет метаданные фильмов", "SQL")
+
+Rel(userService, kafka, "Публикует события пользователей", "Kafka")
+Rel(paymentService, kafka, "Публикует события платежей", "Kafka")
+Rel(moviesService, kafka, "Публикует события фильмов", "Kafka")
+Rel(eventsService, kafka, "Публикует и читает MVP-события", "Kafka")
+
+Rel(paymentService, paymentProvider, "Проводит платежи", "HTTPS/API")
+Rel(discountService, loyaltySystem, "Получает скидки и бонусы", "HTTPS/API")
+Rel(moviesService, contentProviders, "Получает/обновляет сведения о контенте", "HTTPS/API")
+Rel(monolith, recommendationSystem, "Получает рекомендации до полного выделения сервиса рекомендаций", "HTTP/API")
+Rel(ratingService, recommendationSystem, "Передаёт оценки и пользовательские сигналы для рекомендаций", "Events/API")
+
+Rel(proxy, userService, "Целевая маршрутизация пользователей после миграции", "HTTP")
+Rel(proxy, subscriptionService, "Целевая маршрутизация подписок после миграции", "HTTP")
+Rel(proxy, paymentService, "Целевая маршрутизация платежей после миграции", "HTTP")
+Rel(proxy, ratingService, "Целевая маршрутизация оценок и избранного после миграции", "HTTP")
+Rel(proxy, discountService, "Целевая маршрутизация скидок после миграции", "HTTP")
+
+@enduml
