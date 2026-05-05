@@ -5,7 +5,9 @@ global:
 
 # Image pull secrets
 imagePullSecrets:
-  dockerconfigjson: ewoJImF1dGhzIjogewoJCSJnaGNyLmlvIjogewoJCQkiYXV0aCI6
+  # Valid empty Docker config: {"auths":{}}
+  # Do not commit real GitHub tokens here.
+  dockerconfigjson: eyJhdXRocyI6e319
 # Database configuration
 database:
   host: postgres
